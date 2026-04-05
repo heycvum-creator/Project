@@ -1,4 +1,4 @@
-name: Linux Runner pe Windows RDP (8GB RAM + 4 Cores - Simple)
+name: Linux Runner pe Windows RDP with Tailscale (8GB + 4 Cores)
 
 on:
   workflow_dispatch:
@@ -15,16 +15,15 @@ jobs:
           sudo apt-get install -y qemu-system-x86 ovmf virt-viewer bridge-utils socat
           sudo modprobe kvm
 
-      - name: Download Windows 11 ISO (Latest Evaluation 2026)
+      - name: Download Windows 11 ISO (Latest Evaluation)
         run: |
-          # Official Microsoft Windows 11 Enterprise Evaluation ISO (direct link)
           wget -O win11.iso https://go.microsoft.com/fwlink/?linkid=2334167
 
       - name: Create Virtual Disk (80GB)
         run: |
           qemu-img create -f qcow2 windows.qcow2 80G
 
-      - name: Start Windows VM with QEMU (8GB RAM + 4 Cores + RDP Forward)
+      - name: Start Windows VM with QEMU (8GB RAM + 4 Cores + RDP Port Forward)
         run: |
           qemu-system-x86_64 \
             -m 8192 -smp 4 -cpu host \
@@ -35,12 +34,20 @@ jobs:
             -vga virtio -display none \
             -daemonize &
 
-      - name: Setup ngrok Tunnel for RDP
+      - name: Install Tailscale on Linux Host (for easy management)
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}   # Optional if you have OAuth, else skip or use authkey below
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          # Agar OAuth nahi bana to upar wala secret TS_AUTHKEY use kar sakte ho manually
+
+      - name: Wait for VM to Boot + Tailscale Setup Inside Windows (PowerShell)
         run: |
-          wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
-          tar -xzf ngrok-v3-stable-linux-amd64.tgz
-          ./ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-          ./ngrok tcp 3389 --log=stdout &
+          sleep 120  # Wait for Windows to start booting
+          echo "VM running... Tailscale will be installed inside Windows via guest execution (simulated here)"
+          # Real mein pehli baar manually RDP (local port) se connect karke Tailscale install kar lo
+          # Ya advanced: QEMU guest agent + PowerShell script for auto download
 
       - name: Keep Running
         run: sleep 21600  # 6 hours
